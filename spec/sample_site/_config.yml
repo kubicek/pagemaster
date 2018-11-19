@@ -1,0 +1,17 @@
+---
+title: faker
+url: ''
+baseurl: ''
+collections:
+  stacy_layne_matthews:
+    source: stacy_layne_matthews.csv
+    id_key: pid
+    layout: iiif-image-page
+  chi_chi_devayne:
+    source: chi_chi_devayne.json
+    id_key: pid
+    layout: iiif-image-page
+  naomi_smalls:
+    source: naomi_smalls.yml
+    id_key: pid
+    layout: iiif-image-page

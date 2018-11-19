@@ -1,12 +1,12 @@
-require 'csv'
-require 'yaml'
-require 'json'
+require 'jekyll'
+require_relative 'collection'
 
 include FileUtils
 
 # Jekyll comand to generate markdown collection pages from CSV/YML/JSON records
 class Pagemaster < Jekyll::Command
   class << self
+
     def init_with_program(prog)
       prog.command(:pagemaster) do |c|
         c.syntax 'pagemaster [options] [args]'
@@ -17,75 +17,64 @@ class Pagemaster < Jekyll::Command
       end
     end
 
-    def execute(args, opts = {})
-      config = YAML.load_file('_config.yml')
-      abort 'Cannot find collections in config' unless config.key?('collections')
-      args.each do |name|
-        abort "Cannot find #{name} in collection config" unless config['collections'].key? name
-        meta = {
-          id_key: config['collections'][name].fetch('id_key'),
-          layout: config['collections'][name].fetch('layout'),
-          source: config['collections'][name].fetch('source'),
-          subdir: config.fetch('source', ''),
-          ext:    config.fetch('permalink', '') == 'pretty' ? '/' : '.html'
-        }
-        data = ingest(meta)
-        generate_pages(name, meta, data, opts)
+    def execute(args, opts = {}, config = nil)
+      site = config || self.site_config
+      raise StandardError, 'No collections in config' if site[:collections].nil?
+
+      args.map do |name|
+        collection = Collection.new(site, name)
+        generate_pages(site, collection, opts)
       end
     end
 
-    def ingest(meta)
-      src = File.join((meta[:subdir].to_s.strip.empty? ? meta[:subdir] : "." ), "_data", meta[:source])
-      puts "Processing #{src}...."
-      data = case File.extname(src)
-             when '.csv'
-               CSV.read(src, headers: true).map(&:to_hash)
-             when '.json'
-               JSON.parse(File.read(src).encode('UTF-8'))
-             when '.yml'
-               YAML.load_file(src)
-             else
-               raise 'Collection source must have a valid extension (.csv, .yml, or .json)'
-             end
-      detect_duplicates(meta, data)
-      data
-    rescue StandardError
-      raise "Cannot load #{src}. check for typos and rebuild."
+    def site_config
+      config = config || YAML.load_file('_config.yml')
+      {
+        source: config.fetch('source', nil),
+        collections: config.fetch('collections', nil),
+        collections_dir: config.fetch('collections_dir', nil),
+        permalink: config.fetch('permalink', nil)
+      }
+    rescue => e
+      raise StandardError, 'Cannot load _config.yml'
     end
 
-    def detect_duplicates(meta, data)
-      ids = data.map { |d| d[meta[:data]] }
-      duplicates = ids.detect { |i| ids.count(i) > 1 } || []
-      raise "Your collection duplicate ids: \n#{duplicates}" unless duplicates.empty?
-    end
+    def generate_pages(site, collection, opts)
+      perma   = !opts.fetch(:no_perma, nil)
+      force   = !!opts.fetch(:force, false)
 
-    def generate_pages(name, meta, data, opts)
-      dir       = File.join((meta[:subdir].to_s.strip.empty? ? meta[:subdir] : "." ), "_#{name}")
-      perma     = opts.fetch(:no_perma, meta[:ext])
+      mkdir_p(collection.page_dir)
 
-      if opts.fetch(:force, false)
-        FileUtils.rm_rf(dir)
-        puts "Overwriting #{dir} directory with --force."
-      end
-
-      mkdir_p(dir)
-      data.each do |item|
-        pagename = slug(item.fetch(meta[:id_key]))
-        pagepath = "#{dir}/#{pagename}.md"
-        item['permalink'] = "/#{name}/#{pagename}#{perma}" if perma
-        item['layout']    = meta[:layout]
-        if File.exist?(pagepath)
-          puts "#{pagename}.md already exits. Skipping."
+      collection.data.each do |d|
+        pagename       = slug(d.fetch(collection.id_key))
+        pagepath       = "#{collection.page_dir}/#{pagename}.md"
+        d['layout']    = collection.layout
+        d['permalink'] = permalink(collection, pagename, site) if perma
+        if !File.exist?(pagepath) or force
+          File.open(pagepath, 'w') { |f| f.write("#{d.to_yaml}---") }
         else
-          File.open(pagepath, 'w') { |f| f.write("#{item.to_yaml}---") }
+          puts "#{pagename}.md already exits. Skipping."
         end
       end
-    rescue StandardError
-      raise 'Pagemaster exited for some reason, most likely a missing or invalid id_key.'
+    end
+
+    def permalink(collection, pagename, site)
+      "/#{collection.name}/#{pagename}#{permalink_ext(site)}"
+    end
+
+    def permalink_ext(site)
+      site[:permalink] == 'pretty' ? '/' : '.html'
+    end
+
+    def remove_diacritics(str)
+      to_replace  = 'ÀÁÂÃÄÅàáâãäåĀāĂăĄąÇçĆćĈĉĊċČčÐðĎďĐđÈÉÊËèéêëĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħÌÍÎÏìíîïĨĩĪīĬĭĮįİıĴĵĶķĸĹĺĻļĽľĿŀŁłÑñŃńŅņŇňŉŊŋÒÓÔÕÖØòóôõöøŌōŎŏŐőŔŕŖŗŘřŚśŜŝŞşŠšſŢţŤťŦŧÙÚÛÜùúûüŨũŪūŬŭŮůŰűŲųŴŵÝýÿŶŷŸŹźŻżŽž'
+      replaced_by = 'AAAAAAaaaaaaAaAaAaCcCcCcCcCcDdDdDdEEEEeeeeEeEeEeEeEeGgGgGgGgHhHhIIIIiiiiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnNnnNnOOOOOOooooooOoOoOoRrRrRrSsSsSsSssTtTtTtUUUUuuuuUuUuUuUuUuUuWwYyyYyYZzZzZz'
+      str.to_s.tr(to_replace, replaced_by)
     end
 
     def slug(str)
-      str.downcase.tr(' ', '_').gsub(/[^:\w-]/, '')
+      normalized_string = remove_diacritics(str)
+      normalized_string.downcase.tr(' ', '_').gsub(/[^:\w-]/, '')
     end
   end
 end
