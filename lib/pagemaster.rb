@@ -1,24 +1,21 @@
 require 'jekyll'
 require_relative 'collection'
 
-include FileUtils
-
 # Jekyll comand to generate markdown collection pages from CSV/YML/JSON records
 class Pagemaster < Jekyll::Command
   class << self
-
     def init_with_program(prog)
       prog.command(:pagemaster) do |c|
         c.syntax 'pagemaster [options] [args]'
-        c.description 'Generate md pages from collection data.'
-        c.option :no_perma, '--no-permalink', 'Skips adding hard-coded permalink.'
-        c.option :force, '--force', 'Erases pre-existing collection before regenerating.'
+        c.description 'Generates markdown pages from collection data'
+        c.option :no_perma, '--no-permalink', 'Skips adding hardcoded permalink'
+        c.option :force, '--force', 'Overwrites existing pages'
         c.action { |args, options| execute(args, options) }
       end
     end
 
     def execute(args, opts = {}, config = nil)
-      site = config || self.site_config
+      site = config || site_config
       raise StandardError, 'No collections in config' if site[:collections].nil?
 
       args.map do |name|
@@ -28,29 +25,29 @@ class Pagemaster < Jekyll::Command
     end
 
     def site_config
-      config = config || YAML.load_file('_config.yml')
+      config ||= YAML.load_file('_config.yml')
       {
         source: config.fetch('source', nil),
         collections: config.fetch('collections', nil),
         collections_dir: config.fetch('collections_dir', nil),
         permalink: config.fetch('permalink', nil)
       }
-    rescue => e
-      raise StandardError, 'Cannot load _config.yml'
+    rescue StandardError => e
+      raise "Cannot load ._config.yml\n#{e}"
     end
 
     def generate_pages(site, collection, opts)
       perma   = !opts.fetch(:no_perma, nil)
       force   = !!opts.fetch(:force, false)
 
-      mkdir_p(collection.page_dir)
+      FileUtils.mkdir_p(collection.page_dir)
 
       collection.data.each do |d|
         pagename       = slug(d.fetch(collection.id_key))
         pagepath       = "#{collection.page_dir}/#{pagename}.md"
         d['layout']    = collection.layout
         d['permalink'] = permalink(collection, pagename, site) if perma
-        if !File.exist?(pagepath) or force
+        if !File.exist?(pagepath) || force
           File.open(pagepath, 'w') { |f| f.write("#{d.to_yaml}---") }
         else
           puts "#{pagename}.md already exits. Skipping."

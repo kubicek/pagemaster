@@ -2,6 +2,7 @@ require 'csv'
 require 'yaml'
 require 'json'
 
+# Class to handle collection-level configuration
 class Collection
   attr_reader :name
 
@@ -24,11 +25,12 @@ class Collection
   def layout
     layout = @config.fetch('layout', nil)
     raise "No layout was specified for #{@name} in _config.yml" if layout.nil?
+
     layout
   end
 
   def ingest_source_file
-    raise StandardError, "Collection #{@name} has no source specified" unless @config.key?('source')
+    raise "Collection #{@name} has no source specified" unless @config.key?('source')
 
     source = File.join([@site[:source], '_data', @config['source']].compact)
 
@@ -46,14 +48,12 @@ class Collection
     end
   end
 
-
   def validate(data)
     id_key = self.id_key
-
-    raise "No id _key specified for collection #{@name}"if id_key.nil?
+    raise "No id _key specified for collection #{@name}" if id_key.nil?
 
     ids = data.map { |d| d.fetch(id_key, nil) }
-    is_nil = ids.select { |i| i.nil? }
+    is_nil = ids.select(&:nil?)
     not_unique = ids.select { |i| ids.count(i) > 1 }.uniq! || []
 
     raise "#{@name} is missing values for required value '#{id_key}'" unless is_nil.empty?

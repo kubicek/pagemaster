@@ -1,10 +1,13 @@
-Style/MixinUsage:
+AllCops:
+  TargetRubyVersion: 2.4
+  Exclude: ['spec/**/*']
+Style/FrozenStringLiteralComment:
   Enabled: false
-Metrics/MethodLength:
-  Max: 25
 Metrics/AbcSize:
   Max: 25
+Metrics/MethodLength:
+  Max: 15
 Metrics/LineLength:
-  Max: 100
-Metrics/BlockLength:
-  Max: 50
+  IgnoredPatterns: ['ÈÉÊË', 'EEEE', 'raise']
+Style/DoubleNegation:
+  Enabled: false
