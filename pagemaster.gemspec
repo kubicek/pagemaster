@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
   s.homepage      = 'https://github.com/mnyrop/pagemaster'
   s.license       = 'MIT'
 
-  s.add_dependency 'jekyll', '~> 3.8'
+  s.add_dependency 'jekyll'
 
   s.add_development_dependency 'bundler', '~> 1.16'
   s.add_development_dependency 'faker', '~> 1.9'
